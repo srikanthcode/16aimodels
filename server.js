@@ -23,6 +23,11 @@ function envInt(name, fallback, min, max) {
 
 const PORT = envInt("PORT", 10000, 0, 65535);
 const UPSTREAM_TIMEOUT_MS = envInt("UPSTREAM_TIMEOUT_MS", 570000, 1000, 900000);
+const UPSTREAM_WARMUP_TIMEOUT_MS = envInt("UPSTREAM_WARMUP_TIMEOUT_MS", 2700000, 1000, 7200000);
+if (UPSTREAM_WARMUP_TIMEOUT_MS <= UPSTREAM_TIMEOUT_MS) {
+  console.error("[fatal] UPSTREAM_WARMUP_TIMEOUT_MS must be greater than UPSTREAM_TIMEOUT_MS.");
+  process.exit(1);
+}
 const MAX_BODY_BYTES = envInt("MAX_BODY_BYTES", 10 * 1024 * 1024, 1024, 64 * 1024 * 1024);
 const MAX_EMBED_INPUTS = envInt("MAX_EMBED_INPUTS", 256, 1, 2048);
 const OLLAMA_NUM_CTX = envInt("OLLAMA_NUM_CTX", 0, 0, 1048576);
@@ -235,6 +240,7 @@ function buildUpstreamUrl(pathname) {
 function openUpstream(pathname, payload, options = {}) {
   const method = options.method || (payload === undefined ? "GET" : "POST");
   const timeoutMs = options.timeoutMs || UPSTREAM_TIMEOUT_MS;
+  const warmupMs = options.warmupMs || 0;
   const signal = options.signal;
   const url = buildUpstreamUrl(pathname);
   const body = payload === undefined ? null : Buffer.from(JSON.stringify(payload), "utf8");
@@ -257,6 +263,7 @@ function openUpstream(pathname, payload, options = {}) {
     }
 
     let settled = false;
+    let warming = false;
     const req = transport.request({
       protocol: url.protocol,
       hostname: UPSTREAM_HOSTNAME,
@@ -266,15 +273,36 @@ function openUpstream(pathname, payload, options = {}) {
       headers,
       agent: upstreamAgent
     }, (upstreamRes) => {
+      if (warming) {
+        log("info", "upstream_warmup_complete", { path: pathname });
+        upstreamRes.resume();
+        upstreamRes.on("error", () => {});
+        return;
+      }
       settled = true;
       resolve(upstreamRes);
     });
 
     req.setTimeout(timeoutMs, () => {
+      if (!warming && !settled && warmupMs > 0) {
+        warming = true;
+        settled = true;
+        log("info", "upstream_warmup_engaged", { path: pathname, timeoutMs, warmupMs });
+        reject(Object.assign(new Error("Upstream request timed out."), { code: "ETIMEDOUT" }));
+        req.setTimeout(warmupMs, () => {
+          log("warn", "upstream_warmup_expired", { path: pathname, warmupMs });
+          req.destroy(Object.assign(new Error("Warm-up request timed out."), { code: "ETIMEDOUT" }));
+        });
+        return;
+      }
       req.destroy(Object.assign(new Error("Upstream request timed out."), { code: "ETIMEDOUT" }));
     });
 
     req.on("error", (err) => {
+      if (warming) {
+        log("info", "upstream_warmup_ended", { path: pathname, code: err && err.code });
+        return;
+      }
       if (settled) return;
       settled = true;
       reject(err);
@@ -282,6 +310,10 @@ function openUpstream(pathname, payload, options = {}) {
 
     if (signal) {
       signal.addEventListener("abort", () => {
+        if (warming) {
+          log("info", "upstream_warmup_client_abort_ignored", { path: pathname });
+          return;
+        }
         req.destroy(Object.assign(new Error("Request aborted."), { code: "ABORT_ERR" }));
       }, { once: true });
     }
@@ -1076,7 +1108,7 @@ async function streamChatCompletions(res, model, payload, includeUsage) {
 
   let upstreamRes;
   try {
-    upstreamRes = await openUpstream("/api/chat", payload, { signal: controller.signal });
+    upstreamRes = await openUpstream("/api/chat", payload, { signal: controller.signal, warmupMs: UPSTREAM_WARMUP_TIMEOUT_MS });
   } catch (err) {
     res.removeListener("close", onClose);
     throw err;
@@ -1244,7 +1276,7 @@ async function handleChatCompletions(req, res) {
     return;
   }
 
-  const result = await upstreamJson("/api/chat", payload);
+  const result = await upstreamJson("/api/chat", payload, { warmupMs: UPSTREAM_WARMUP_TIMEOUT_MS });
   const source = result && result.message ? result.message : {};
   const content = sanitizeText(source.content);
   const thinking = sanitizeText(source.thinking || source.reasoning || "");
@@ -1287,7 +1319,7 @@ async function streamCompletions(res, model, payload, includeUsage) {
 
   let upstreamRes;
   try {
-    upstreamRes = await openUpstream("/api/generate", payload, { signal: controller.signal });
+    upstreamRes = await openUpstream("/api/generate", payload, { signal: controller.signal, warmupMs: UPSTREAM_WARMUP_TIMEOUT_MS });
   } catch (err) {
     res.removeListener("close", onClose);
     throw err;
@@ -1427,7 +1459,7 @@ async function handleCompletions(req, res) {
     return;
   }
 
-  const result = await upstreamJson("/api/generate", payload);
+  const result = await upstreamJson("/api/generate", payload, { warmupMs: UPSTREAM_WARMUP_TIMEOUT_MS });
   sendJson(res, 200, {
     id: `cmpl-${crypto.randomBytes(16).toString("hex")}`,
     object: "text_completion",

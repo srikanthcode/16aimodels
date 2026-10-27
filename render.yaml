@@ -19,3 +19,5 @@ services:
         value: "*"
       - key: UPSTREAM_TIMEOUT_MS
         value: "570000"
+      - key: UPSTREAM_WARMUP_TIMEOUT_MS
+        value: "2700000"
