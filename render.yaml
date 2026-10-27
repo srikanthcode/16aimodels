@@ -18,6 +18,6 @@ services:
       - key: CORS_ORIGIN
         value: "*"
       - key: UPSTREAM_TIMEOUT_MS
-        value: "570000"
+        value: "285000"
       - key: UPSTREAM_WARMUP_TIMEOUT_MS
-        value: "2700000"
+        value: "5400000"
