@@ -27,7 +27,10 @@ const MAX_BODY_BYTES = envInt("MAX_BODY_BYTES", 10 * 1024 * 1024, 1024, 64 * 102
 const MAX_EMBED_INPUTS = envInt("MAX_EMBED_INPUTS", 256, 1, 2048);
 const OLLAMA_NUM_CTX = envInt("OLLAMA_NUM_CTX", 0, 0, 1048576);
 const HEALTH_CACHE_MS = 5000;
-const OLLAMA_KEEP_ALIVE = process.env.OLLAMA_KEEP_ALIVE || "";
+const OLLAMA_KEEP_ALIVE_RAW = process.env.OLLAMA_KEEP_ALIVE || "";
+const OLLAMA_KEEP_ALIVE = /^-?\d+$/.test(OLLAMA_KEEP_ALIVE_RAW)
+  ? Number(OLLAMA_KEEP_ALIVE_RAW)
+  : OLLAMA_KEEP_ALIVE_RAW;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
 const APP_API_KEY = process.env.APP_API_KEY || "";
 const HYPERNET_OLLAMA_URL = (process.env.HYPERNET_OLLAMA_URL || "").trim();
@@ -1234,7 +1237,7 @@ async function handleChatCompletions(req, res) {
   if (format !== undefined) payload.format = format;
   if (tools !== undefined) payload.tools = tools;
   if (think !== undefined) payload.think = think;
-  if (OLLAMA_KEEP_ALIVE) payload.keep_alive = OLLAMA_KEEP_ALIVE;
+  if (OLLAMA_KEEP_ALIVE_RAW) payload.keep_alive = OLLAMA_KEEP_ALIVE;
 
   if (stream) {
     await streamChatCompletions(res, model, payload, includeUsage);
@@ -1417,7 +1420,7 @@ async function handleCompletions(req, res) {
   if (Object.keys(options).length > 0) payload.options = options;
   if (format !== undefined) payload.format = format;
   if (think !== undefined) payload.think = think;
-  if (OLLAMA_KEEP_ALIVE) payload.keep_alive = OLLAMA_KEEP_ALIVE;
+  if (OLLAMA_KEEP_ALIVE_RAW) payload.keep_alive = OLLAMA_KEEP_ALIVE;
 
   if (stream) {
     await streamCompletions(res, model, payload, includeUsage);
