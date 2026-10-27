@@ -90,7 +90,7 @@ The gateway listens on `0.0.0.0:$PORT` (default `10000`).
 | `HYPERNET_OLLAMA_URL` | yes | - | Base URL of the Ollama tunnel. No credentials, query, or fragment. A base path is allowed. |
 | `HYPERNET_API_KEY` | no | empty | Bearer token sent to the tunnel/reverse proxy. |
 | `PORT` | no | `10000` | Listen port. Render sets this automatically. |
-| `UPSTREAM_TIMEOUT_MS` | no | `300000` | Backend timeout in milliseconds. |
+| `UPSTREAM_TIMEOUT_MS` | no | `570000` | Backend timeout in milliseconds. |
 | `MAX_BODY_BYTES` | no | `10485760` | Maximum request body size (10 MiB). |
 | `MAX_EMBED_INPUTS` | no | `256` | Maximum strings per embeddings request. |
 | `OLLAMA_NUM_CTX` | no | `0` | Context window override. `0` uses the backend default. |

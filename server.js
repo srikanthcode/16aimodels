@@ -22,7 +22,7 @@ function envInt(name, fallback, min, max) {
 }
 
 const PORT = envInt("PORT", 10000, 0, 65535);
-const UPSTREAM_TIMEOUT_MS = envInt("UPSTREAM_TIMEOUT_MS", 300000, 1000, 900000);
+const UPSTREAM_TIMEOUT_MS = envInt("UPSTREAM_TIMEOUT_MS", 570000, 1000, 900000);
 const MAX_BODY_BYTES = envInt("MAX_BODY_BYTES", 10 * 1024 * 1024, 1024, 64 * 1024 * 1024);
 const MAX_EMBED_INPUTS = envInt("MAX_EMBED_INPUTS", 256, 1, 2048);
 const OLLAMA_NUM_CTX = envInt("OLLAMA_NUM_CTX", 0, 0, 1048576);
@@ -1654,7 +1654,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.headersTimeout = 60000;
-server.requestTimeout = 120000;
+server.requestTimeout = 900000;
 server.keepAliveTimeout = 65000;
 server.maxHeadersCount = 100;
 

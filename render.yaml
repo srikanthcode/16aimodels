@@ -17,3 +17,5 @@ services:
         sync: false
       - key: CORS_ORIGIN
         value: "*"
+      - key: UPSTREAM_TIMEOUT_MS
+        value: "570000"
